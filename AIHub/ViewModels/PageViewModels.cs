@@ -121,12 +121,39 @@ namespace AIHub.ViewModels
             IsLoading = false;
         }
     }
+    public class ApiKeyMetadataField : ObservableObject
+    {
+        private string _key = string.Empty;
+        private string _value = string.Empty;
+
+        public string Key
+        {
+            get => _key;
+            set => SetProperty(ref _key, value ?? string.Empty);
+        }
+
+        public string Value
+        {
+            get => _value;
+            set => SetProperty(ref _value, value ?? string.Empty);
+        }
+    }
+
     public partial class ApiVaultViewModel : ObservableObject
     {
         private readonly ISupabaseRepository _db;
         private readonly ILoggingService _logger;
 
         [ObservableProperty] private ObservableCollection<ApiKeyItem> _apiKeys = new();
+
+        // Add API key dialog state
+        [ObservableProperty] private bool _isAddDialogOpen;
+        [ObservableProperty] private string _newProductName = string.Empty;
+        [ObservableProperty] private string _newApiKey = string.Empty;
+        [ObservableProperty] private string _newDescription = string.Empty;
+        [ObservableProperty] private ObservableCollection<ApiKeyMetadataField> _additionalFields = new();
+        [ObservableProperty] private string _addStatusMessage = string.Empty;
+        [ObservableProperty] private bool _isAddStatusError;
 
         public ApiVaultViewModel(ISupabaseRepository db, ILoggingService logger)
         {
@@ -136,9 +163,11 @@ namespace AIHub.ViewModels
 
         private async Task LoadDataAsync()
         {
-            try {
+            try
+            {
                 var items = await _db.GetApiKeysAsync();
-                foreach (var item in items) {
+                foreach (var item in items)
+                {
                     item.EncryptedValue = "••••••••••••••••";
                     ApiKeys.Add(item);
                 }
@@ -146,20 +175,104 @@ namespace AIHub.ViewModels
             catch (Exception ex) { await _logger.LogErrorAsync(ex, "ApiVaultViewModel Load"); }
         }
 
-        [RelayCommand]
-        public async Task AddKeyAsync(string rawKey)
+        private void ResetAddForm()
         {
-            try {
-                var enc = EncryptionHelper.Encrypt(rawKey);
-                var keyItem = new ApiKeyItem { Name = "New Key", Tags = "Draft", EncryptedValue = enc.EncryptedValue, InitializationVector = enc.InitializationVector };
+            NewProductName = string.Empty;
+            NewApiKey = string.Empty;
+            NewDescription = string.Empty;
+            AdditionalFields.Clear();
+            AddStatusMessage = string.Empty;
+            IsAddStatusError = false;
+        }
+
+        [RelayCommand]
+        private void OpenAddKeyDialog()
+        {
+            ResetAddForm();
+            IsAddDialogOpen = true;
+        }
+
+        [RelayCommand]
+        private void CloseAddKeyDialog()
+        {
+            IsAddDialogOpen = false;
+        }
+
+        [RelayCommand]
+        private void AddMetadataField()
+        {
+            AdditionalFields.Add(new ApiKeyMetadataField());
+        }
+
+        [RelayCommand]
+        private void RemoveMetadataField(ApiKeyMetadataField? field)
+        {
+            if (field != null && AdditionalFields.Contains(field))
+            {
+                AdditionalFields.Remove(field);
+            }
+        }
+
+        private bool CanSaveNewKey() =>
+            !string.IsNullOrWhiteSpace(NewProductName) &&
+            !string.IsNullOrWhiteSpace(NewApiKey);
+
+        [RelayCommand(CanExecute = nameof(CanSaveNewKey))]
+        public async Task SaveNewKeyAsync()
+        {
+            if (!CanSaveNewKey())
+            {
+                return;
+            }
+
+            try
+            {
+                var enc = EncryptionHelper.Encrypt(NewApiKey);
+
+                // Flatten dynamic fields into a tag string "key=value;key2=value2"
+                var tagParts = AdditionalFields
+                    .Where(f => !string.IsNullOrWhiteSpace(f.Key) && !string.IsNullOrWhiteSpace(f.Value))
+                    .Select(f => $"{f.Key.Trim()}={f.Value.Trim()}");
+                var tags = string.Join("; ", tagParts);
+
+                var keyItem = new ApiKeyItem
+                {
+                    Name = NewProductName.Trim(),
+                    Description = NewDescription?.Trim() ?? string.Empty,
+                    Tags = tags,
+                    EncryptedValue = enc.EncryptedValue,
+                    InitializationVector = enc.InitializationVector
+                };
+
                 var result = await _db.CreateApiKeyAsync(keyItem);
-                if (result != null) {
+                if (result != null)
+                {
                     result.EncryptedValue = "••••••••••••••••";
                     ApiKeys.Add(result);
-                    await _logger.LogAsync("Create API Key", "SUCCESS", "Key added to vault securely.");
+                    AddStatusMessage = "API key saved successfully.";
+                    IsAddStatusError = false;
+                    await _logger.LogAsync("Create API Key", "SUCCESS", $"Key '{result.Name}' added to vault securely.");
+
+                    // Close and reset after successful save
+                    IsAddDialogOpen = false;
+                    ResetAddForm();
                 }
-            } catch (Exception ex) { await _logger.LogErrorAsync(ex, "ApiVault Setup Key"); }
+                else
+                {
+                    AddStatusMessage = "Unable to save the API key. Please try again.";
+                    IsAddStatusError = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                AddStatusMessage = "An error occurred while saving the key.";
+                IsAddStatusError = true;
+                await _logger.LogErrorAsync(ex, "ApiVault SaveNewKey");
+            }
         }
+
+        partial void OnNewProductNameChanged(string value) => SaveNewKeyCommand.NotifyCanExecuteChanged();
+        partial void OnNewApiKeyChanged(string value) => SaveNewKeyCommand.NotifyCanExecuteChanged();
     }
 
     public partial class ApiTesterViewModel : ObservableObject

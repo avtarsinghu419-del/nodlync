@@ -2,32 +2,285 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Grid Margin="24">
-        <Border Background="{StaticResource CardBrush}" CornerRadius="12" Padding="20" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}">
+        <!-- Main content -->
+        <Border Background="{StaticResource CardBrush}"
+                CornerRadius="12"
+                Padding="20"
+                BorderThickness="1"
+                BorderBrush="{StaticResource BorderBrush}">
             <StackPanel>
                 <Grid Margin="0,0,0,16">
-                    <TextBlock Text="SECURE API KEYS" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextBrush}"/>
-                    <Button Style="{StaticResource PrimaryButtonStyle}"
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel>
+                        <TextBlock Text="SECURE API KEYS"
+                                   FontSize="16"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock Text="Store and manage encrypted API credentials for your products."
+                                   FontSize="12"
+                                   Margin="0,4,0,0"
+                                   Foreground="{StaticResource TextMutedBrush}"/>
+                    </StackPanel>
+
+                    <Button Grid.Column="1"
+                            Style="{StaticResource PrimaryButtonStyle}"
                             HorizontalAlignment="Right"
                             FontSize="12"
-                            Command="{Binding AddKeyCommand}"
-                            CommandParameter="sample-key-value">
+                            Command="{Binding OpenAddKeyDialogCommand}">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock FontFamily="Segoe Fluent Icons" Text="&#xE72E;" Margin="0,0,8,0"/>
+                            <TextBlock FontFamily="Segoe Fluent Icons"
+                                       Text="&#xE72E;"
+                                       Margin="0,0,8,0"/>
                             <TextBlock Text="Add API Key"/>
                         </StackPanel>
                     </Button>
                 </Grid>
-                <DataGrid ItemsSource="{Binding ApiKeys}" AutoGenerateColumns="False" Background="Transparent" Foreground="{StaticResource TextBrush}" RowBackground="Transparent" AlternatingRowBackground="{StaticResource SidebarBrush}" HeadersVisibility="Column" GridLinesVisibility="None" BorderThickness="0">
+
+                <DataGrid ItemsSource="{Binding ApiKeys}"
+                          AutoGenerateColumns="False"
+                          Background="Transparent"
+                          Foreground="{StaticResource TextBrush}"
+                          RowBackground="Transparent"
+                          AlternatingRowBackground="{StaticResource SidebarBrush}"
+                          HeadersVisibility="Column"
+                          GridLinesVisibility="None"
+                          BorderThickness="0">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150"/>
-                        <DataGridTextColumn Header="Tags" Binding="{Binding Tags}" Width="150"/>
-                        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="200"/>
-                        <DataGridTextColumn Header="Key (Encrypted)" Binding="{Binding EncryptedKey}" Width="*"/>
+                        <DataGridTextColumn Header="Product"
+                                            Binding="{Binding Name}"
+                                            Width="150"/>
+                        <DataGridTextColumn Header="Tags"
+                                            Binding="{Binding Tags}"
+                                            Width="150"/>
+                        <DataGridTextColumn Header="Description"
+                                            Binding="{Binding Description}"
+                                            Width="200"/>
+                        <DataGridTextColumn Header="Key (Encrypted)"
+                                            Binding="{Binding EncryptedValue}"
+                                            Width="*"/>
                     </DataGrid.Columns>
                 </DataGrid>
-                <TextBlock Text="Keys are AES-encrypted before saving to the database." FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,16,0,0"/>
+
+                <TextBlock Text="Keys are AES-encrypted before saving to the database."
+                           FontSize="11"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           Margin="0,16,0,0"/>
             </StackPanel>
         </Border>
+
+        <!-- Add API Key dialog overlay -->
+        <Grid Background="#80000000"
+              Visibility="{Binding IsAddDialogOpen, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Border Width="520"
+                    MaxHeight="520"
+                    Padding="20"
+                    CornerRadius="12"
+                    Background="{StaticResource CardBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    SnapsToDevicePixels="True">
+                <Grid>
+                    <Grid.InputBindings>
+                        <KeyBinding Key="Enter"
+                                    Command="{Binding SaveNewKeyCommand}"/>
+                        <KeyBinding Key="Escape"
+                                    Command="{Binding CloseAddKeyDialogCommand}"/>
+                    </Grid.InputBindings>
+
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <Grid Grid.Row="0" Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel>
+                            <TextBlock Text="Add API Key"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource TextBrush}"/>
+                            <TextBlock Text="Product name and API key are required. Use additional fields for scope, environment, and more."
+                                       FontSize="12"
+                                       Margin="0,4,0,0"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <Button Grid.Column="1"
+                                Content="✕"
+                                Width="28"
+                                Height="28"
+                                Margin="8,0,0,0"
+                                Command="{Binding CloseAddKeyDialogCommand}"
+                                Background="Transparent"
+                                Foreground="{StaticResource TextMutedBrush}"
+                                BorderThickness="0"
+                                FontSize="14"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Cursor="Hand"/>
+                    </Grid>
+
+                    <!-- Form -->
+                    <ScrollViewer Grid.Row="1"
+                                  VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <!-- Product Name -->
+                            <TextBlock Text="Product Name"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextBrush}"/>
+                            <TextBox x:Name="ProductNameTextBox"
+                                     Margin="0,4,0,12"
+                                     Text="{Binding NewProductName, UpdateSourceTrigger=PropertyChanged}"
+                                     Background="{StaticResource SidebarBrush}"
+                                     Foreground="{StaticResource TextBrush}"
+                                     BorderBrush="{StaticResource BorderBrush}"
+                                     BorderThickness="1"
+                                     Padding="8"
+                                     Loaded="ProductNameTextBox_Loaded"/>
+
+                            <!-- API Key -->
+                            <TextBlock Text="API Key"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextBrush}"/>
+                            <TextBox Margin="0,4,0,12"
+                                     Text="{Binding NewApiKey, UpdateSourceTrigger=PropertyChanged}"
+                                     Background="{StaticResource SidebarBrush}"
+                                     Foreground="{StaticResource TextBrush}"
+                                     BorderBrush="{StaticResource BorderBrush}"
+                                     BorderThickness="1"
+                                     Padding="8"/>
+
+                            <!-- Description -->
+                            <TextBlock Text="Description (optional)"
+                                       FontSize="12"
+                                       Foreground="{StaticResource TextBrush}"/>
+                            <TextBox Margin="0,4,0,16"
+                                     Text="{Binding NewDescription, UpdateSourceTrigger=PropertyChanged}"
+                                     Background="{StaticResource SidebarBrush}"
+                                     Foreground="{StaticResource TextBrush}"
+                                     BorderBrush="{StaticResource BorderBrush}"
+                                     BorderThickness="1"
+                                     Padding="8"
+                                     AcceptsReturn="True"
+                                     Height="72"
+                                     TextWrapping="Wrap"/>
+
+                            <!-- Dynamic fields header -->
+                            <StackPanel Orientation="Horizontal"
+                                        Margin="0,0,0,8">
+                                <TextBlock Text="Additional Fields"
+                                           FontSize="12"
+                                           Foreground="{StaticResource TextBrush}"
+                                           VerticalAlignment="Center"/>
+                                <Button Content="+ Add Field"
+                                        Margin="12,0,0,0"
+                                        Command="{Binding AddMetadataFieldCommand}"
+                                        Style="{StaticResource OutlineButtonStyle}"
+                                        FontSize="11"
+                                        Padding="8,4"/>
+                            </StackPanel>
+
+                            <!-- Dynamic fields list -->
+                            <ItemsControl ItemsSource="{Binding AdditionalFields}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*"/>
+                                                <ColumnDefinition Width="3*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBox Grid.Column="0"
+                                                     Margin="0,0,8,0"
+                                                     Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}"
+                                                     Background="{StaticResource SidebarBrush}"
+                                                     Foreground="{StaticResource TextBrush}"
+                                                     BorderBrush="{StaticResource BorderBrush}"
+                                                     BorderThickness="1"
+                                                     Padding="6"
+                                                     ToolTip="Field name (e.g. environment, scope, expires)"/>
+
+                                            <TextBox Grid.Column="1"
+                                                     Margin="0,0,8,0"
+                                                     Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                                                     Background="{StaticResource SidebarBrush}"
+                                                     Foreground="{StaticResource TextBrush}"
+                                                     BorderBrush="{StaticResource BorderBrush}"
+                                                     BorderThickness="1"
+                                                     Padding="6"
+                                                     ToolTip="Field value (e.g. Production, read-only, 2026-12-31)"/>
+
+                                            <Button Grid.Column="2"
+                                                    Content="Remove"
+                                                    Command="{Binding DataContext.RemoveMetadataFieldCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Style="{StaticResource OutlineButtonStyle}"
+                                                    FontSize="11"
+                                                    Padding="8,4"
+                                                    Foreground="#f97373"
+                                                    BorderBrush="#f97373"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Status message -->
+                            <TextBlock Margin="0,8,0,0"
+                                       Text="{Binding AddStatusMessage}"
+                                       Visibility="{Binding AddStatusMessage, Converter={StaticResource StringToVisibilityConverter}}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource GreenBrush}"/>
+                                        <Setter Property="FontSize" Value="11"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsAddStatusError}" Value="True">
+                                                <Setter Property="Foreground" Value="#f97373"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Actions -->
+                    <StackPanel Grid.Row="2"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Margin="0,16,0,0">
+                        <Button Content="Cancel"
+                                Margin="0,0,8,0"
+                                Command="{Binding CloseAddKeyDialogCommand}"
+                                Style="{StaticResource OutlineButtonStyle}"
+                                FontSize="11"
+                                Padding="12,6"/>
+                        <Button Content="Save Key"
+                                Command="{Binding SaveNewKeyCommand}"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                FontSize="11"
+                                Padding="12,6"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>
 

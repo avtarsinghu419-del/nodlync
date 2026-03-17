@@ -1,4 +1,6 @@
 using System.Windows.Controls;
+using System.Windows;
+using System.Windows.Input;
 
 namespace AIHub.Views
 {
@@ -9,6 +11,16 @@ namespace AIHub.Views
     public partial class ApiVaultPage : UserControl
     {
         public ApiVaultPage() { InitializeComponent(); }
+
+        private void ProductNameTextBox_Loaded(object sender, RoutedEventArgs e)
+        {
+            // Automatically focus the first input when the add-key interface opens
+            if (sender is Control control)
+            {
+                control.Focus();
+                Keyboard.Focus(control);
+            }
+        }
     }
     public partial class ApiTesterPage : UserControl
     {
