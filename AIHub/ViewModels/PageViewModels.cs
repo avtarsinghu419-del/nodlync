@@ -2,6 +2,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
+using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -457,19 +458,38 @@ namespace AIHub.ViewModels
         public Action? OnRequestRegister { get; set; }
 
         [ObservableProperty] private string _email = string.Empty;
+        [ObservableProperty] private string _password = string.Empty;
+        [ObservableProperty] private bool _rememberMe = true;
+        [ObservableProperty] private bool _showPassword;
         [ObservableProperty] private string _loginActionText = "Log In";
         [ObservableProperty] private string _statusMessage = string.Empty;
+        [ObservableProperty] private string _emailValidationMessage = string.Empty;
+        [ObservableProperty] private string _passwordValidationMessage = string.Empty;
 
         public LoginViewModel(IAuthService auth) { _auth = auth; }
 
         [RelayCommand]
-        public async Task LoginAsync(object passwordBoxParam)
+        public async Task LoginAsync()
         {
-            var pb = passwordBoxParam as System.Windows.Controls.PasswordBox;
-            if (pb == null) return;
-            LoginActionText = "Authenticating...";
+            EmailValidationMessage = string.Empty;
+            PasswordValidationMessage = string.Empty;
             StatusMessage = string.Empty;
-            if (await _auth.LoginAsync(Email, pb.Password))
+
+            if (string.IsNullOrWhiteSpace(Email))
+            {
+                EmailValidationMessage = "Email is required.";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(Password))
+            {
+                PasswordValidationMessage = "Password is required.";
+                return;
+            }
+
+            LoginActionText = "Authenticating...";
+
+            if (await _auth.LoginAsync(Email, Password, RememberMe))
             {
                 ClearFields();
                 LoginActionText = "Log In";
@@ -501,7 +521,10 @@ namespace AIHub.ViewModels
         public void ClearFields()
         {
             Email = string.Empty;
+            Password = string.Empty;
             StatusMessage = string.Empty;
+            EmailValidationMessage = string.Empty;
+            PasswordValidationMessage = string.Empty;
         }
     }
 
@@ -511,22 +534,124 @@ namespace AIHub.ViewModels
         public Action? OnRequestLogin { get; set; }
 
         [ObservableProperty] private string _email = string.Empty;
+        [ObservableProperty] private string _emailValidationMessage = string.Empty;
         [ObservableProperty] private string _displayName = string.Empty;
+        [ObservableProperty] private string _displayNameValidationMessage = string.Empty;
+        [ObservableProperty] private string _password = string.Empty;
+        [ObservableProperty] private string _passwordValidationMessage = string.Empty;
+        [ObservableProperty] private string _confirmPassword = string.Empty;
+        [ObservableProperty] private string _confirmPasswordValidationMessage = string.Empty;
+        [ObservableProperty] private bool _showPassword;
+        [ObservableProperty] private bool _isPasswordMismatch;
+        [ObservableProperty] private double _passwordStrengthValue;
+        [ObservableProperty] private string _passwordStrengthLabel = string.Empty;
         [ObservableProperty] private string _registerActionText = "Create Account";
+        [ObservableProperty] private string _statusMessage = string.Empty;
 
         public RegisterViewModel(IAuthService auth) { _auth = auth; }
 
-        [RelayCommand]
-        public async Task RegisterAsync(object passwordBoxParam)
+        partial void OnPasswordChanged(string value)
         {
-            var pb = passwordBoxParam as System.Windows.Controls.PasswordBox;
-            if (pb == null) return;
+            UpdatePasswordValidation();
+        }
+
+        partial void OnConfirmPasswordChanged(string value)
+        {
+            UpdatePasswordValidation();
+        }
+
+        private void UpdatePasswordValidation()
+        {
+            ComputePasswordStrength(Password);
+
+            if (string.IsNullOrEmpty(Password) && string.IsNullOrEmpty(ConfirmPassword))
+            {
+                PasswordValidationMessage = string.Empty;
+                ConfirmPasswordValidationMessage = string.Empty;
+                IsPasswordMismatch = false;
+                return;
+            }
+
+            if (Password != ConfirmPassword)
+            {
+                IsPasswordMismatch = true;
+                ConfirmPasswordValidationMessage = "Passwords do not match.";
+            }
+            else
+            {
+                IsPasswordMismatch = false;
+                ConfirmPasswordValidationMessage = string.Empty;
+            }
+        }
+
+        private void ComputePasswordStrength(string pwd)
+        {
+            if (string.IsNullOrEmpty(pwd))
+            {
+                PasswordStrengthValue = 0;
+                PasswordStrengthLabel = string.Empty;
+                return;
+            }
+
+            var score = 0;
+            if (pwd.Length >= 8) score += 30;
+            if (pwd.Any(char.IsUpper)) score += 20;
+            if (pwd.Any(char.IsLower)) score += 20;
+            if (pwd.Any(char.IsDigit)) score += 15;
+            if (pwd.Any(c => "!@#$%^&*()_+-=[]{}|;:'\",.<>/?".Contains(c))) score += 15;
+
+            score = Math.Min(100, score);
+            PasswordStrengthValue = score;
+
+            if (score < 40) PasswordStrengthLabel = "Weak";
+            else if (score < 70) PasswordStrengthLabel = "Moderate";
+            else PasswordStrengthLabel = "Strong";
+        }
+
+        [RelayCommand]
+        public async Task RegisterAsync()
+        {
+            EmailValidationMessage = string.Empty;
+            DisplayNameValidationMessage = string.Empty;
+            PasswordValidationMessage = string.Empty;
+            ConfirmPasswordValidationMessage = string.Empty;
+            StatusMessage = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(Email))
+            {
+                EmailValidationMessage = "Email is required.";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(DisplayName))
+            {
+                DisplayNameValidationMessage = "Display name is required.";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(Password))
+            {
+                PasswordValidationMessage = "Password cannot be empty.";
+                return;
+            }
+
+            if (IsPasswordMismatch)
+            {
+                ConfirmPasswordValidationMessage = "Passwords do not match.";
+                return;
+            }
+
             RegisterActionText = "Registering...";
-            if (await _auth.RegisterAsync(Email, pb.Password, DisplayName))
+            StatusMessage = string.Empty;
+
+            if (await _auth.RegisterAsync(Email, Password, DisplayName))
             {
                 // Clear fields and hand control back to login
                 Email = string.Empty;
                 DisplayName = string.Empty;
+                Password = string.Empty;
+                ConfirmPassword = string.Empty;
+                IsPasswordMismatch = false;
                 RegisterActionText = "Create Account";
                 OnRequestLogin?.Invoke();
             }
@@ -662,6 +787,7 @@ namespace AIHub.ViewModels
     // ─────────────────────────────────────────────────
     public partial class ProfileViewModel : ObservableObject
     {
+        private readonly ISupabaseRepository _repo;
         private readonly IAuthService _auth;
         private readonly ILoggingService _logger;
         public Action? OnLogout { get; set; }
@@ -670,42 +796,126 @@ namespace AIHub.ViewModels
         [ObservableProperty] private string _email = string.Empty;
         [ObservableProperty] private string _role = string.Empty;
         [ObservableProperty] private string _initials = "?";
+        [ObservableProperty] private string _avatarUrl = string.Empty;
+        [ObservableProperty] private string _selectedAvatarPath = string.Empty;
         [ObservableProperty] private string _statusMessage = string.Empty;
         [ObservableProperty] private bool _isSaving;
 
-        public ProfileViewModel(IAuthService auth, ILoggingService logger)
+        public ProfileViewModel(ISupabaseRepository repo, IAuthService auth, ILoggingService logger)
         {
+            _repo = repo;
             _auth = auth;
             _logger = logger;
-            LoadProfile();
+            _ = LoadProfileAsync();
         }
 
-        private void LoadProfile()
+        public async Task LoadProfileAsync()
         {
             var user = _auth.CurrentUser;
             if (user == null) return;
-            DisplayName = user.DisplayName;
-            Email       = user.Email;
-            Role        = user.Role;
-            Initials    = user.Initials;
+
+            // Try loading profile from Supabase; if missing, create one
+            var profile = await _repo.GetUserProfileAsync(user.Id);
+            if (profile == null)
+            {
+                profile = new UserProfile
+                {
+                    Id = user.Id,
+                    Email = user.Email,
+                    DisplayName = user.DisplayName,
+                    Role = user.Role
+                };
+                await _repo.SaveUserProfileAsync(profile);
+            }
+
+            // Update current user info and UI bindings
+            _auth.UpdateCurrentUser(profile);
+            DisplayName = profile.DisplayName;
+            Email = profile.Email;
+            Role = profile.Role;
+            AvatarUrl = profile.AvatarUrl;
+            Initials = profile.Initials;
         }
 
         [RelayCommand]
         public async Task SaveProfileAsync()
         {
+            if (_auth.CurrentUser == null) return;
+
             IsSaving = true;
             StatusMessage = "Saving...";
-            bool ok = await _auth.UpdateDisplayNameAsync(DisplayName);
-            if (ok)
+
+            try
             {
-                Initials      = _auth.CurrentUser?.Initials ?? "?";
-                StatusMessage = "Profile updated!";
-                await _logger.LogAsync("Profile", "SUCCESS", "Display name updated");
+                // If a new avatar file has been selected, upload it first.
+                if (!string.IsNullOrWhiteSpace(SelectedAvatarPath) && File.Exists(SelectedAvatarPath))
+                {
+                    try
+                    {
+                        using var stream = File.OpenRead(SelectedAvatarPath);
+                        var uploadedUrl = await _repo.UploadAvatarAsync(_auth.CurrentUser.Id, stream, SelectedAvatarPath);
+                        if (!string.IsNullOrWhiteSpace(uploadedUrl))
+                        {
+                            AvatarUrl = uploadedUrl;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        await _logger.LogErrorAsync(ex, "UploadAvatar");
+                        StatusMessage = "Failed to upload avatar.";
+                    }
+                }
+
+                var profile = new UserProfile
+                {
+                    Id = _auth.CurrentUser.Id,
+                    Email = _auth.CurrentUser.Email,
+                    DisplayName = DisplayName,
+                    Role = Role,
+                    AvatarUrl = AvatarUrl
+                };
+
+                var updated = await _repo.SaveUserProfileAsync(profile);
+                if (updated != null)
+                {
+                    _auth.UpdateCurrentUser(updated);
+                    Initials = updated.Initials;
+                    AvatarUrl = updated.AvatarUrl;
+                    StatusMessage = "Profile updated!";
+                    await _logger.LogAsync("Profile", "SUCCESS", "Profile updated");
+                    SelectedAvatarPath = string.Empty;
+                }
+                else
+                {
+                    StatusMessage = "Update failed.";
+                }
             }
-            else StatusMessage = "Update failed.";
-            await Task.Delay(2000);
-            StatusMessage = string.Empty;
-            IsSaving = false;
+            catch (Exception ex)
+            {
+                await _logger.LogErrorAsync(ex, "SaveProfile");
+                StatusMessage = "Failed to save profile.";
+            }
+            finally
+            {
+                await Task.Delay(2000);
+                StatusMessage = string.Empty;
+                IsSaving = false;
+            }
+        }
+
+        [RelayCommand]
+        public void SelectAvatar()
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Select Avatar Image",
+                Filter = "Image Files|*.png;*.jpg;*.jpeg;*.gif|All Files|*.*"
+            };
+
+            if (dlg.ShowDialog() == true)
+            {
+                SelectedAvatarPath = dlg.FileName;
+            }
         }
 
         [RelayCommand]

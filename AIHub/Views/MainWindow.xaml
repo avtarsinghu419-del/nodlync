@@ -4,7 +4,7 @@
         xmlns:views="clr-namespace:AIHub.Views"
         xmlns:vm="clr-namespace:AIHub.ViewModels"
         Title="NodLync" Height="850" Width="1300"
-        Icon="/logoicon.png"
+        Icon="/AIHub;component/LOGO/favicon.ico"
         Background="{StaticResource BackgroundBrush}"
         WindowStartupLocation="CenterScreen">
     <Window.Resources>
@@ -58,7 +58,7 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="24">
-                    <Image Source="/logoicon.png" Width="36" Height="36" Stretch="Uniform" />
+                    <Image Source="/AIHub;component/LOGO/favicon-96x96.png" Width="36" Height="36" Stretch="Uniform" />
                     <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
                         <TextBlock Text="NodLync" FontWeight="Bold" FontSize="16"/>
                         <TextBlock Text="Workspace" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
@@ -144,7 +144,22 @@
                     </Border.InputBindings>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <Border Background="{StaticResource PrimaryBrush}" Width="32" Height="32" CornerRadius="16">
-                            <TextBlock Text="{Binding SidebarUserInitials}" Foreground="White" VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="12" FontWeight="Bold"/>
+                            <Grid>
+                                <Image Source="{Binding SidebarUserAvatarUrl}" Stretch="UniformToFill" 
+                                       Visibility="{Binding SidebarUserAvatarUrl, Converter={StaticResource StringToVisibilityConverter}}"/>
+                                <TextBlock Text="{Binding SidebarUserInitials}" Foreground="White" VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="12" FontWeight="Bold">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SidebarUserAvatarUrl}" Value="">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
                         </Border>
                         <StackPanel Margin="12,0,0,0">
                             <TextBlock Text="{Binding SidebarUserName}" FontWeight="SemiBold" FontSize="13" Foreground="{StaticResource TextBrush}"/>

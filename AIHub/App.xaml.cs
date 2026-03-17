@@ -101,7 +101,7 @@ namespace AIHub
             // Register ViewModels
             services.AddSingleton<MainViewModel>();
             services.AddTransient<DashboardViewModel>();
-            services.AddTransient<ProjectsViewModel>();
+            services.AddSingleton<ProjectsViewModel>();
             services.AddTransient<ProjectWorkspaceViewModel>();
             services.AddTransient<ApiVaultViewModel>();
             services.AddTransient<ApiTesterViewModel>();
@@ -157,7 +157,7 @@ namespace AIHub
             }
         }
 
-        private void Application_Startup(object sender, StartupEventArgs e)
+        private async void Application_Startup(object sender, StartupEventArgs e)
         {
             _logger = _serviceProvider.GetRequiredService<ILoggingService>();
             
@@ -191,6 +191,13 @@ namespace AIHub
             });
 
             var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
+
+            // Try to restore a saved session before showing the UI so users are not forced to log in again.
+            if (mainWindow.DataContext is MainViewModel mainVm)
+            {
+                await mainVm.InitializeAsync();
+            }
+
             Log.Information("Showing main window.");
             MainWindow = mainWindow;
             mainWindow.Show();

@@ -1,11 +1,4 @@
--- Supabase schema and RLS policies for AIHub
 
-create extension if not exists "pgcrypto";
-
-
--- =========================================================
--- AIHub FINAL DATABASE SCHEMA
--- =========================================================
 
 create extension if not exists "pgcrypto";
 
@@ -309,3 +302,37 @@ create policy settings_access_own
 on app_settings
 for all
 using (user_id = auth.uid());
+
+-- Projects table definition
+CREATE TABLE IF NOT EXISTS projects (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL,
+    name text NOT NULL,
+    description text NOT NULL DEFAULT '',
+    status text NOT NULL DEFAULT 'Active',
+    created_at timestamp with time zone NOT NULL DEFAULT now()
+);
+
+-- app_logs table fix: ensure created_at column
+ALTER TABLE app_logs
+ADD COLUMN IF NOT EXISTS created_at timestamp with time zone NOT NULL DEFAULT now();
+
+-- RLS policies for projects
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can insert own projects" ON projects;
+DROP POLICY IF EXISTS "Users can insert their projects" ON projects;
+DROP POLICY IF EXISTS insert_own_projects ON projects;
+DROP POLICY IF EXISTS select_own_projects ON projects;
+
+CREATE POLICY insert_own_projects
+ON projects
+FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY select_own_projects
+ON projects
+FOR SELECT
+TO authenticated
+USING (auth.uid() = user_id);

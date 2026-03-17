@@ -28,8 +28,23 @@
 
                     <!-- Avatar circle -->
                     <Border Grid.Column="0" Width="80" Height="80" CornerRadius="40" Background="{StaticResource PrimaryBrush}" Margin="0,0,24,0">
-                        <TextBlock Text="{Binding Initials}" FontSize="28" FontWeight="Bold" Foreground="White"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <Grid>
+                            <Image Source="{Binding AvatarUrl}" Stretch="UniformToFill"
+                                   Visibility="{Binding AvatarUrl, Converter={StaticResource StringToVisibilityConverter}}" />
+                            <TextBlock Text="{Binding Initials}" FontSize="28" FontWeight="Bold" Foreground="White"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding AvatarUrl}" Value="">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
                     </Border>
 
                     <!-- Profile info -->
@@ -39,6 +54,8 @@
                         <Border Background="#1A137fec" CornerRadius="4" Padding="8,3" Margin="0,8,0,0" HorizontalAlignment="Left">
                             <TextBlock Text="{Binding Role}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource PrimaryBrush}"/>
                         </Border>
+                        <Button Content="Change Avatar" Command="{Binding SelectAvatarCommand}" Style="{StaticResource PrimaryButtonStyle}" Padding="8" Margin="0,12,0,0" Width="140" HorizontalAlignment="Left"/>
+                        <TextBlock Text="{Binding SelectedAvatarPath}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,8,0,0" Visibility="{Binding SelectedAvatarPath, Converter={StaticResource StringToVisibilityConverter}}"/>
                     </StackPanel>
                 </Grid>
             </Border>

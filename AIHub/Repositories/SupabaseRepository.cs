@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,6 +19,9 @@ namespace AIHub.Repositories
         private readonly HttpClient _httpClient;
         private readonly IAuthService _authService;
         private readonly SupabaseConfig _config;
+        private readonly string _supabaseUrl;
+        private readonly string _supabaseAnonKey;
+        private readonly string _storageBucket;
 
         public SupabaseRepository(HttpClient httpClient, IOptions<SupabaseConfig> config, IAuthService authService)
         {
@@ -24,13 +29,14 @@ namespace AIHub.Repositories
             _authService = authService;
             _config = config.Value;
 
-            var url = Environment.GetEnvironmentVariable("SUPABASE_URL") ?? _config.Url;
-            var anonKey = Environment.GetEnvironmentVariable("SUPABASE_ANON_KEY") ?? _config.AnonKey;
+            _supabaseUrl = NormalizeSupabaseUrl(Environment.GetEnvironmentVariable("SUPABASE_URL") ?? _config.Url);
+            _supabaseAnonKey = Environment.GetEnvironmentVariable("SUPABASE_ANON_KEY") ?? _config.AnonKey;
+            _storageBucket = (Environment.GetEnvironmentVariable("SUPABASE_STORAGE_BUCKET") ?? _config.StorageBucket ?? "avatars")?.Trim('/');
 
-            if (!string.IsNullOrEmpty(url) && !string.IsNullOrEmpty(anonKey))
+            if (!string.IsNullOrEmpty(_supabaseUrl) && !string.IsNullOrEmpty(_supabaseAnonKey))
             {
-                _httpClient.BaseAddress = new Uri(url + "/rest/v1/");
-                _httpClient.DefaultRequestHeaders.Add("apikey", anonKey);
+                _httpClient.BaseAddress = new Uri($"{_supabaseUrl}/rest/v1/");
+                _httpClient.DefaultRequestHeaders.Add("apikey", _supabaseAnonKey);
                 _httpClient.DefaultRequestHeaders.Add("Prefer", "return=representation");
             }
         }
@@ -53,6 +59,32 @@ namespace AIHub.Repositories
 
             _httpClient.DefaultRequestHeaders.Add("Prefer", "return=representation");
             _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Content-Type", "application/json");
+        }
+
+        private static string NormalizeSupabaseUrl(string? url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return string.Empty;
+
+            url = url.Trim();
+            if (url.EndsWith("/")) url = url.TrimEnd('/');
+            if (url.EndsWith("/rest/v1", StringComparison.OrdinalIgnoreCase))
+                url = url[..^"/rest/v1".Length];
+
+            return url;
+        }
+
+        private string BuildStorageUrl(string bucket, string objectPath, bool isPublic)
+        {
+            // Ensure bucket and path are valid URL path segments (especially for buckets with spaces or other special chars)
+            bucket = (bucket ?? string.Empty).Trim('/').Trim();
+            objectPath = (objectPath ?? string.Empty).Trim('/');
+
+            var encodedBucket = Uri.EscapeDataString(bucket);
+            var encodedObjectPath = string.Join("/", objectPath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(Uri.EscapeDataString));
+
+            var prefix = isPublic ? "public/" : string.Empty;
+            return $"{_supabaseUrl}/storage/v1/object/{prefix}{encodedBucket}/{encodedObjectPath}";
         }
 
         private async Task<List<T>> GetListAsync<T>(string endpoint, CancellationToken ct)
@@ -475,16 +507,8 @@ namespace AIHub.Repositories
                  throw new Exception("Supabase error: " + body);
          }
 
-        private List<Project>? _projectsCache;
-        private DateTime _projectsCacheAtUtc = DateTime.MinValue;
-
         public async Task<List<Project>> GetProjectsAsync(bool forceRefresh = false, CancellationToken ct = default)
         {
-            if (!forceRefresh && _projectsCache != null && (DateTime.UtcNow - _projectsCacheAtUtc) < TimeSpan.FromMinutes(2))
-            {
-                return _projectsCache;
-            }
-
             ApplyHeaders();
 
             var response = await _httpClient.GetAsync("projects?select=*", ct);
@@ -498,8 +522,6 @@ namespace AIHub.Repositories
                 throw new Exception("Supabase error: " + body);
 
             var projects = JsonConvert.DeserializeObject<List<Project>>(body) ?? new List<Project>();
-            _projectsCache = projects;
-            _projectsCacheAtUtc = DateTime.UtcNow;
             return projects;
         }
         
@@ -507,14 +529,20 @@ namespace AIHub.Repositories
         {
             ApplyHeaders();
 
+            var ownerId = _authService.CurrentUser?.Id ?? string.Empty;
             var payload = new
             {
                 name = project.Name ?? string.Empty,
                 description = project.Description ?? string.Empty,
-                status = project.Status ?? string.Empty
+                status = string.IsNullOrWhiteSpace(project.Status) ? "Active" : project.Status,
+                user_id = ownerId
             };
 
             var json = JsonConvert.SerializeObject(payload);
+            Console.WriteLine("SUPABASE REQUEST");
+            Console.WriteLine("POST projects");
+            Console.WriteLine(json);
+
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
             var response = await _httpClient.PostAsync("projects", content, ct);
@@ -526,7 +554,6 @@ namespace AIHub.Repositories
 
             if (response.IsSuccessStatusCode)
             {
-                _projectsCache = null;
                 var projects = JsonConvert.DeserializeObject<List<Project>>(body);
                 return projects?.FirstOrDefault();
             }
@@ -538,14 +565,12 @@ namespace AIHub.Repositories
         {
             if (string.IsNullOrWhiteSpace(project.Id)) return false;
             await PatchAsync("projects", project.Id, project, ct);
-            _projectsCache = null;
             return true;
         }
 
         public async Task<bool> DeleteProjectAsync(string projectId, CancellationToken ct = default)
         {
             await DeleteAsync("projects", projectId, ct);
-            _projectsCache = null;
             return true;
         }
 
@@ -648,5 +673,54 @@ namespace AIHub.Repositories
         }
 
         public async Task CreateProjectActivityAsync(ProjectActivity activity, CancellationToken ct = default) => await TryPostCandidatesAsync<ProjectActivity>("project_activities", BuildProjectActivityPayloadCandidates(activity), ct);
+
+        // User profile support
+        public async Task<UserProfile?> GetUserProfileAsync(string userId, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(userId)) return null;
+            var profiles = await GetListAsync<UserProfile>($"user_profiles?id=eq.{userId}", ct);
+            return profiles != null && profiles.Count > 0 ? profiles[0] : null;
+        }
+
+        public async Task<UserProfile?> SaveUserProfileAsync(UserProfile profile, CancellationToken ct = default)
+        {
+            if (profile == null || string.IsNullOrWhiteSpace(profile.Id)) return null;
+
+            try
+            {
+                // Try updating existing profile first
+                await PatchAsync("user_profiles", profile.Id, new { display_name = profile.DisplayName, avatar_url = profile.AvatarUrl, role = profile.Role }, ct);
+                return await GetUserProfileAsync(profile.Id, ct);
+            }
+            catch
+            {
+                // If update fails (e.g., profile doesn't exist), try insert
+                return await PostAsync<UserProfile>("user_profiles", profile, ct);
+            }
+        }
+
+        public async Task<string?> UploadAvatarAsync(string userId, Stream imageStream, string fileName, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(userId) || imageStream == null || imageStream.Length == 0) return null;
+
+            var cleanFileName = Path.GetFileName(fileName) ?? "avatar";
+            var objectPath = $"{userId}/{cleanFileName}";
+            var bucket = string.IsNullOrWhiteSpace(_storageBucket) ? "avatars" : _storageBucket.Trim('/');
+            var url = BuildStorageUrl(bucket, objectPath, isPublic: false);
+
+            ApplyHeaders();
+            using var request = new HttpRequestMessage(HttpMethod.Put, url)
+            {
+                Content = new StreamContent(imageStream)
+            };
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+
+            var response = await _httpClient.SendAsync(request, ct);
+            var body = await response.Content.ReadAsStringAsync(ct);
+            if (!response.IsSuccessStatusCode)
+                throw new Exception($"Failed to upload avatar: {body}");
+
+            return BuildStorageUrl(bucket, objectPath, isPublic: true);
+        }
     }
 }

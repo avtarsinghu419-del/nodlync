@@ -20,6 +20,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
@@ -51,7 +52,7 @@
                                 Padding="12,6"
                                 Margin="0,0,8,0"/>
                         <Button Content="+ New Project"
-                                Command="{Binding CreateProjectCommand}"
+                                Command="{Binding NewProjectCommand}"
                                 Click="NewProjectButton_Click"
                                 Style="{StaticResource PrimaryButtonStyle}"
                                 FontSize="11"
@@ -59,13 +60,20 @@
                     </StackPanel>
                 </Grid>
 
+                <!-- Debug visibility for IsCreateMode -->
                 <TextBlock Grid.Row="1"
+                           Text="{Binding IsCreateMode}"
+                           FontSize="20"
+                           Foreground="{StaticResource PrimaryBrush}"
+                           Margin="0,0,0,8"/>
+
+                <TextBlock Grid.Row="2"
                            Text="Loading projects..."
                            Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"
                            Foreground="{StaticResource TextMutedBrush}"
                            Margin="0,0,0,12"/>
 
-                <Grid Grid.Row="2">
+                <Grid Grid.Row="3">
                     <TextBlock Text="No projects yet. Click New Project to create one."
                                Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibilityConverter}}"
                                Foreground="{StaticResource TextMutedBrush}"
@@ -78,7 +86,6 @@
                     <ListView x:Name="ProjectsListView"
                               ItemsSource="{Binding Projects}"
                               SelectedItem="{Binding SelectedProject, Mode=TwoWay}"
-                              SelectionChanged="ProjectsListView_SelectionChanged"
                               SelectionMode="Single"
                               Background="Transparent"
                               BorderThickness="0"
@@ -152,7 +159,6 @@
                                 <Setter Property="Margin" Value="0"/>
                                 <Setter Property="Background" Value="Transparent"/>
                                 <Setter Property="Cursor" Value="Hand"/>
-                                <EventSetter Event="PreviewMouseLeftButtonDown" Handler="ProjectListItem_PreviewMouseLeftButtonDown"/>
                                 <EventSetter Event="MouseDoubleClick" Handler="ProjectListItem_MouseDoubleClick"/>
                             </Style>
                         </ListView.ItemContainerStyle>
@@ -167,7 +173,7 @@
                 BorderThickness="1"
                 CornerRadius="16"
                 Padding="20">
-            <views:ProjectDetailView DataContext="{Binding EditorViewModel}" />
+            <views:ProjectDetailView />
         </Border>
     </Grid>
 </UserControl>

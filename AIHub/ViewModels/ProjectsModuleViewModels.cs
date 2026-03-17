@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.Input;
 using AIHub.Models;
 using AIHub.Repositories;
 using AIHub.Services;
+using Newtonsoft.Json;
 
 namespace AIHub.ViewModels
 {
@@ -17,17 +18,25 @@ namespace AIHub.ViewModels
         private readonly ISupabaseRepository _repo;
         private readonly IAuthService _auth;
         private readonly ILoggingService _logger;
-        private bool _preserveCreateModeOnRefresh = true;
 
         [ObservableProperty] private ObservableCollection<Project> _projects = new();
         [ObservableProperty] private Project? _selectedProject;
+        [ObservableProperty] private Project _newProject = new();
+        [ObservableProperty] private bool _isCreateMode = true;
         [ObservableProperty] private bool _isLoading;
         [ObservableProperty] private bool _isEmpty;
 
-        public ProjectEditorViewModel EditorViewModel { get; }
-        public IRelayCommand CreateProjectCommand { get; }
+        public ObservableCollection<string> StatusOptions { get; } = new()
+        {
+            "Active",
+            "Completed",
+            "On Hold"
+        };
+
+        public IRelayCommand NewProjectCommand { get; }
+        public IAsyncRelayCommand CreateProjectCommand { get; }
+        public IAsyncRelayCommand UpdateProjectCommand { get; }
         public IRelayCommand RefreshProjectsCommand { get; }
-        public ICommand SelectProjectCommand { get; }
         public ICommand OpenWorkspaceCommand { get; }
         public Action<Project>? OnOpenWorkspaceRequested { get; set; }
 
@@ -37,18 +46,13 @@ namespace AIHub.ViewModels
             _auth = auth;
             _logger = logger;
 
-            EditorViewModel = new ProjectEditorViewModel(repo, auth, logger)
-            {
-                OnSaveRequested = HandleEditorSaveAsync,
-                OnDeleteRequested = DeleteProjectFromEditorAsync
-            };
-
-            CreateProjectCommand = new RelayCommand(StartCreateProject);
+            NewProjectCommand = new RelayCommand(StartCreateProject);
+            CreateProjectCommand = new AsyncRelayCommand(CreateProjectAsync);
+            UpdateProjectCommand = new AsyncRelayCommand(UpdateProjectAsync);
             RefreshProjectsCommand = new AsyncRelayCommand(() => LoadProjectsInternalAsync(true));
-            SelectProjectCommand = new RelayCommand<Project?>(SelectProject);
             OpenWorkspaceCommand = new RelayCommand<Project?>(OpenWorkspace, project => project != null);
 
-            EditorViewModel.BeginCreate();
+            StartCreateProject();
             _ = LoadProjectsInternalAsync(false);
         }
 
@@ -70,28 +74,15 @@ namespace AIHub.ViewModels
             {
                 var currentSelectionId = selectProjectId ?? SelectedProject?.Id;
                 var items = await _repo.GetProjectsAsync(forceRefresh);
-                var userId = _auth.CurrentUser?.Id;
+                Console.WriteLine("Projects fetched: " + JsonConvert.SerializeObject(items));
 
-                if (!string.IsNullOrWhiteSpace(userId))
-                {
-                    items = items.Where(p => p.OwnerUserId == userId).ToList();
-                }
-
-                var sorted = items.OrderByDescending(x => x.CreatedAt).ToList();
-
-                Projects.Clear();
-                foreach (var project in sorted)
-                {
-                    Projects.Add(project);
-                }
+                Projects = new ObservableCollection<Project>(items ?? new());
 
                 IsEmpty = Projects.Count == 0;
 
                 if (IsEmpty)
                 {
-                    _preserveCreateModeOnRefresh = true;
-                    SelectedProject = null;
-                    EditorViewModel.BeginCreate();
+                    StartCreateProject();
                     return;
                 }
 
@@ -100,24 +91,18 @@ namespace AIHub.ViewModels
                     var matchingProject = Projects.FirstOrDefault(p => p.Id == currentSelectionId);
                     if (matchingProject != null)
                     {
-                        _preserveCreateModeOnRefresh = false;
                         SelectedProject = matchingProject;
+                        IsCreateMode = false;
                         return;
                     }
                 }
 
-                if (_preserveCreateModeOnRefresh || EditorViewModel.IsCreateMode)
+                if (IsCreateMode)
                 {
-                    SelectedProject = null;
-                    EditorViewModel.BeginCreate();
                     return;
                 }
 
-                if (!EditorViewModel.IsCreateMode)
-                {
-                    _preserveCreateModeOnRefresh = false;
-                    SelectedProject = Projects.First();
-                }
+                SelectedProject = Projects.First();
             }
             catch (Exception ex)
             {
@@ -131,32 +116,19 @@ namespace AIHub.ViewModels
 
         private void StartCreateProject()
         {
-            _preserveCreateModeOnRefresh = true;
+            Console.WriteLine("NewProjectCommand clicked");
+            IsCreateMode = true;
             SelectedProject = null;
-            EditorViewModel.BeginCreate();
+            NewProject = new Project
+            {
+                Status = "Active"
+            };
             NotifyWorkspaceCommand();
         }
 
         public void BeginCreateProject()
         {
             StartCreateProject();
-        }
-
-        public void SelectProject(Project? project)
-        {
-            if (project == null)
-            {
-                _preserveCreateModeOnRefresh = true;
-                SelectedProject = null;
-                EditorViewModel.BeginCreate();
-                NotifyWorkspaceCommand();
-                return;
-            }
-
-            _preserveCreateModeOnRefresh = false;
-            SelectedProject = project;
-            EditorViewModel.LoadProject(project);
-            NotifyWorkspaceCommand();
         }
 
         private void OpenWorkspace(Project? project)
@@ -177,61 +149,55 @@ namespace AIHub.ViewModels
             }
         }
 
-        private async Task HandleEditorSaveAsync(ProjectEditorViewModel editor)
+        private async Task CreateProjectAsync()
         {
+            if (IsLoading || !IsCreateMode)
+            {
+                return;
+            }
+
             IsLoading = true;
             try
             {
-                if (editor.IsCreateMode)
+                Console.WriteLine("CreateProjectCommand clicked");
+                var projectToCreate = NewProject;
+                if (projectToCreate == null || string.IsNullOrWhiteSpace(projectToCreate.Name))
                 {
-                    var newProject = new Project
-                    {
-                        Name = editor.Name.Trim(),
-                        Description = editor.Description.Trim(),
-                        Status = Project.ToDisplayStatus(editor.Status),
-                        OwnerUserId = _auth.CurrentUser?.Id ?? string.Empty
-                    };
-
-                    var created = await _repo.CreateProjectAsync(newProject);
-                    if (created == null)
-                    {
-                        throw new InvalidOperationException("Supabase did not return the created project.");
-                    }
-
-                    await _logger.LogAsync("Create Project", "SUCCESS", $"Created project '{created.Name}'.");
-                    await LoadProjectsInternalAsync(true, created.Id);
+                    MessageBox.Show("Project name is required.", "Projects", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
                 }
-                else
+
+                projectToCreate.Name = projectToCreate.Name.Trim();
+                projectToCreate.Description = (projectToCreate.Description ?? string.Empty).Trim();
+                projectToCreate.Status = Project.ToDisplayStatus(projectToCreate.Status);
+                projectToCreate.OwnerUserId = _auth.CurrentUser?.Id ?? string.Empty;
+
+                Console.WriteLine("Payload sent: " + JsonConvert.SerializeObject(new
                 {
-                    if (editor.ActiveProject == null)
-                    {
-                        return;
-                    }
+                    projectToCreate.Name,
+                    projectToCreate.Description,
+                    projectToCreate.Status,
+                    projectToCreate.OwnerUserId
+                }));
 
-                    var updated = new Project
-                    {
-                        Id = editor.ActiveProject.Id,
-                        OwnerUserId = editor.ActiveProject.OwnerUserId,
-                        CreatedAt = editor.ActiveProject.CreatedAt,
-                        Name = editor.Name.Trim(),
-                        Description = editor.Description.Trim(),
-                        Status = Project.ToDisplayStatus(editor.Status)
-                    };
-
-                    var updatedSuccessfully = await _repo.UpdateProjectAsync(updated);
-                    if (!updatedSuccessfully)
-                    {
-                        throw new InvalidOperationException("The project could not be updated.");
-                    }
-
-                    await _logger.LogAsync("Update Project", "SUCCESS", $"Updated project '{updated.Name}'.");
-                    await LoadProjectsInternalAsync(true, updated.Id);
+                var created = await _repo.CreateProjectAsync(projectToCreate);
+                if (created == null)
+                {
+                    throw new InvalidOperationException("Supabase did not return the created project.");
                 }
+
+                // Keep list in sync immediately, then select the created project into edit mode.
+                Projects.Insert(0, created);
+                Console.WriteLine("Response received: " + JsonConvert.SerializeObject(created));
+                IsEmpty = Projects.Count == 0;
+                SelectedProject = created;
+                IsCreateMode = false;
+                Console.WriteLine("Projects list updated");
             }
             catch (Exception ex)
             {
-                await _logger.LogErrorAsync(ex, "SaveProject");
-                MessageBox.Show($"Unable to save the project: {ex.Message}", "Projects", MessageBoxButton.OK, MessageBoxImage.Error);
+                await _logger.LogErrorAsync(ex, "CreateProject");
+                MessageBox.Show($"Unable to create the project: {ex.Message}", "Projects", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -239,14 +205,38 @@ namespace AIHub.ViewModels
             }
         }
 
-        private async Task DeleteProjectFromEditorAsync(ProjectEditorViewModel editor)
+        private async Task UpdateProjectAsync()
         {
-            if (editor.ActiveProject == null)
+            if (IsLoading || IsCreateMode || SelectedProject == null || string.IsNullOrWhiteSpace(SelectedProject.Name))
             {
                 return;
             }
 
-            await DeleteProjectCoreAsync(editor.ActiveProject);
+            IsLoading = true;
+            try
+            {
+                SelectedProject.Name = SelectedProject.Name.Trim();
+                SelectedProject.Description = (SelectedProject.Description ?? string.Empty).Trim();
+                SelectedProject.Status = Project.ToDisplayStatus(SelectedProject.Status);
+
+                var updatedSuccessfully = await _repo.UpdateProjectAsync(SelectedProject);
+                if (!updatedSuccessfully)
+                {
+                    throw new InvalidOperationException("The project could not be updated.");
+                }
+
+                await _logger.LogAsync("Update Project", "SUCCESS", $"Updated project '{SelectedProject.Name}'.");
+                await LoadProjectsInternalAsync(true, SelectedProject.Id);
+            }
+            catch (Exception ex)
+            {
+                await _logger.LogErrorAsync(ex, "UpdateProject");
+                MessageBox.Show($"Unable to update the project: {ex.Message}", "Projects", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsLoading = false;
+            }
         }
 
         [RelayCommand]
@@ -257,11 +247,6 @@ namespace AIHub.ViewModels
                 return;
             }
 
-            await DeleteProjectCoreAsync(project);
-        }
-
-        private async Task DeleteProjectCoreAsync(Project project)
-        {
             var confirmation = MessageBox.Show(
                 $"Delete '{project.Name}'?\n\nThis action cannot be undone.",
                 "Delete Project",
@@ -290,9 +275,9 @@ namespace AIHub.ViewModels
                 await _logger.LogAsync("Delete Project", "SUCCESS", $"Deleted project '{project.Name}'.");
                 await LoadProjectsInternalAsync(true, fallbackSelectionId);
 
-                if (fallbackSelectionId == null && Projects.Count == 0)
+                if (Projects.Count == 0)
                 {
-                    EditorViewModel.BeginCreate();
+                    StartCreateProject();
                 }
 
                 NotifyWorkspaceCommand();
@@ -310,17 +295,21 @@ namespace AIHub.ViewModels
 
         partial void OnSelectedProjectChanged(Project? value)
         {
-            if (value != null && !string.Equals(EditorViewModel.ActiveProject?.Id, value.Id, StringComparison.Ordinal))
+            if (value != null)
             {
-                EditorViewModel.LoadProject(value);
-            }
-
-            if (value == null && !EditorViewModel.IsCreateMode)
-            {
-                EditorViewModel.BeginCreate();
+                value.Status = Project.ToDisplayStatus(value.Status);
+                IsCreateMode = false;
             }
 
             NotifyWorkspaceCommand();
+        }
+
+        partial void OnNewProjectChanged(Project value)
+        {
+            if (value != null)
+            {
+                value.Status = Project.ToDisplayStatus(value.Status);
+            }
         }
     }
 

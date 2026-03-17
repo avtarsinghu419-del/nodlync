@@ -14,6 +14,7 @@
             <Color x:Key="BackgroundColor">#101922</Color>
             <Color x:Key="PrimaryColor">#137fec</Color>
             <Color x:Key="TextColor">#f1f5f9</Color>
+            <Color x:Key="TextOnLightColor">#000000</Color>
             <Color x:Key="SidebarColor">#0b1219</Color>
             <Color x:Key="CardColor">#1e293b</Color>
             <Color x:Key="BorderColor">#334155</Color>
@@ -24,6 +25,7 @@
             <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}"/>
             <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource PrimaryColor}"/>
             <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}"/>
+            <SolidColorBrush x:Key="TextOnLightBrush" Color="{StaticResource TextOnLightColor}"/>
             <SolidColorBrush x:Key="SidebarBrush" Color="{StaticResource SidebarColor}"/>
             <SolidColorBrush x:Key="CardBrush" Color="{StaticResource CardColor}"/>
             <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}"/>
@@ -36,6 +38,17 @@
                  templates and cause XamlParseException. Foreground inherits from Window level. -->
             <Style TargetType="TextBlock">
                 <Setter Property="FontFamily" Value="Segoe UI"/>
+            </Style>
+
+            <!-- Default text field styling (many inputs are white background by default) -->
+            <Style TargetType="TextBox">
+                <Setter Property="Foreground" Value="{StaticResource TextOnLightBrush}"/>
+            </Style>
+            <Style TargetType="PasswordBox">
+                <Setter Property="Foreground" Value="{StaticResource TextOnLightBrush}"/>
+            </Style>
+            <Style TargetType="ComboBox">
+                <Setter Property="Foreground" Value="{StaticResource TextOnLightBrush}"/>
             </Style>
 
             <!-- Sidebar Navigation Button -->

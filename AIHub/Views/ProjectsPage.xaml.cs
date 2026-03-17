@@ -15,39 +15,14 @@ namespace AIHub.Views
 
         private void NewProjectButton_Click(object sender, RoutedEventArgs e)
         {
-            if (DataContext is not ProjectsViewModel vm)
+            if (DataContext is ProjectsViewModel vm)
             {
-                return;
+                Console.WriteLine("NewProjectButton_Click");
+                if (vm.NewProjectCommand.CanExecute(null))
+                {
+                    vm.NewProjectCommand.Execute(null);
+                }
             }
-
-            ProjectsListView.SelectedItem = null;
-            vm.BeginCreateProject();
-        }
-
-        private void ProjectsListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (DataContext is not ProjectsViewModel vm)
-            {
-                return;
-            }
-
-            vm.SelectProject(ProjectsListView.SelectedItem as Project);
-        }
-
-        private void ProjectListItem_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (e.OriginalSource is DependencyObject source && FindAncestor<Button>(source) != null)
-            {
-                return;
-            }
-
-            if (DataContext is not ProjectsViewModel vm || sender is not ListViewItem item || item.DataContext is not Project project)
-            {
-                return;
-            }
-
-            item.IsSelected = true;
-            vm.SelectProject(project);
         }
 
         private void ProjectListItem_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -63,7 +38,7 @@ namespace AIHub.Views
             }
 
             item.IsSelected = true;
-            vm.SelectProject(project);
+            vm.SelectedProject = project;
 
             if (vm.OpenWorkspaceCommand.CanExecute(project))
             {

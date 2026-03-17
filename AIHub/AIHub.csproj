@@ -12,10 +12,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="..\logoicon.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <Resource Include="LOGO\favicon.ico" />
+    <Resource Include="LOGO\favicon-96x96.png" />
+    <Resource Include="LOGO\web-app-manifest-512x512.png" />
   </ItemGroup>
+  <PropertyGroup>
+    <ApplicationIcon>LOGO\favicon.ico</ApplicationIcon>
+  </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />

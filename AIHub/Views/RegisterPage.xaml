@@ -1,22 +1,145 @@
 <UserControl x:Class="AIHub.Views.RegisterPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Geometry x:Key="EyeOpenIcon">M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z</Geometry>
+        <Geometry x:Key="EyeOffIcon">M2 2l20 20M10.5 7.5c2.06 0 3.92.64 5.47 1.74l1.44-1.44C14.8 6.18 13.45 5.5 12 5.5 7 5.5 2.73 8.61 1 13c.6 1.54 1.58 2.83 2.8 3.78l1.4-1.4C5.04 13.03 4.3 12.06 4.01 11c.98-2.7 3.69-4.5 7.49-4.5zm1.5 10.5c-2.06 0-3.92-.64-5.47-1.74l-1.44 1.44C5.2 17.82 6.55 18.5 8 18.5c5 0 9.27-3.11 11-7.5-.3-1.04-.99-2.01-1.76-2.81l-1.43 1.43C16.42 11.86 14.56 12.5 12 12.5z</Geometry>
+    </UserControl.Resources>
+
     <Grid Margin="24" Background="{StaticResource BackgroundBrush}">
         <Border Background="{StaticResource CardBrush}" CornerRadius="12" Padding="40" MaxWidth="400" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="300">
-                <TextBlock Text="⚡ AI Hub" FontSize="28" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,8">
+                    <Image Source="LOGO/favicon-96x96.png" Width="32" Height="32" Stretch="Uniform" Margin="0,0,8,0"/>
+                    <TextBlock Text="⚡ NodLync" FontSize="28" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center"/>
+                </StackPanel>
                 <TextBlock Text="Create your workspace account" FontSize="14" Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center" Margin="0,0,0,32"/>
                 
                 <TextBlock Text="Display Name" FontSize="12" Foreground="{StaticResource TextBrush}" Margin="0,0,0,8"/>
-                <TextBox Text="{Binding DisplayName}" Background="{StaticResource SidebarBrush}" Foreground="{StaticResource TextBrush}" BorderThickness="0" Padding="12" Margin="0,0,0,16"/>
+                <TextBox Text="{Binding DisplayName}" Background="{StaticResource SidebarBrush}" Foreground="{StaticResource TextBrush}" BorderThickness="0" Padding="12" Margin="0,0,0,4"/>
+                <TextBlock Text="{Binding DisplayNameValidationMessage}" FontSize="10" Foreground="{StaticResource OrangeBrush}" Margin="0,0,0,12" Visibility="{Binding DisplayNameValidationMessage, Converter={StaticResource StringToVisibilityConverter}}"/>
                 
                 <TextBlock Text="Email Address" FontSize="12" Foreground="{StaticResource TextBrush}" Margin="0,0,0,8"/>
-                <TextBox Text="{Binding Email}" Background="{StaticResource SidebarBrush}" Foreground="{StaticResource TextBrush}" BorderThickness="0" Padding="12" Margin="0,0,0,16"/>
+                <TextBox Text="{Binding Email}" Background="{StaticResource SidebarBrush}" Foreground="{StaticResource TextBrush}" BorderThickness="0" Padding="12" Margin="0,0,0,4"/>
+                <TextBlock Text="{Binding EmailValidationMessage}" FontSize="10" Foreground="{StaticResource OrangeBrush}" Margin="0,0,0,12" Visibility="{Binding EmailValidationMessage, Converter={StaticResource StringToVisibilityConverter}}"/>
                 
                 <TextBlock Text="Password" FontSize="12" Foreground="{StaticResource TextBrush}" Margin="0,0,0,8"/>
-                <PasswordBox x:Name="RegisterPasswordBox" Background="{StaticResource SidebarBrush}" Foreground="{StaticResource TextBrush}" BorderThickness="0" Padding="12" Margin="0,0,0,32"/>
-                
-                <Button Content="{Binding RegisterActionText}" Command="{Binding RegisterCommand}" CommandParameter="{Binding ElementName=RegisterPasswordBox}" Style="{StaticResource PrimaryButtonStyle}" Padding="16" Margin="0,0,0,16"/>
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Grid.Column="0">
+                        <PasswordBox x:Name="RegisterPasswordBox" Background="{StaticResource SidebarBrush}" Foreground="{StaticResource TextBrush}" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}" Padding="12">
+                            <PasswordBox.Style>
+                                <Style TargetType="PasswordBox">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ShowPassword}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsPasswordMismatch}" Value="True">
+                                            <Setter Property="BorderBrush" Value="{StaticResource OrangeBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </PasswordBox.Style>
+                        </PasswordBox>
+                        <TextBox Text="{Binding Password, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="{StaticResource SidebarBrush}" Foreground="{StaticResource TextBrush}" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}" Padding="12">
+                            <TextBox.Style>
+                                <Style TargetType="TextBox">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ShowPassword}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsPasswordMismatch}" Value="True">
+                                            <Setter Property="BorderBrush" Value="{StaticResource OrangeBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBox.Style>
+                        </TextBox>
+                    </Grid>
+
+                    <ToggleButton Grid.Column="1" IsChecked="{Binding ShowPassword}" ToolTip="Toggle password visibility" Width="28" Height="28" Margin="8,0,0,0" BorderThickness="0" Background="Transparent">
+                        <Path Fill="{StaticResource TextBrush}" Stretch="Uniform" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path.Style>
+                                <Style TargetType="Path">
+                                    <Setter Property="Data" Value="{StaticResource EyeOpenIcon}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ShowPassword}" Value="True">
+                                            <Setter Property="Data" Value="{StaticResource EyeOffIcon}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Path.Style>
+                        </Path>
+                    </ToggleButton>
+                </Grid>
+                <TextBlock Text="{Binding PasswordValidationMessage}" FontSize="10" Foreground="{StaticResource OrangeBrush}" Margin="0,0,0,4" Visibility="{Binding PasswordValidationMessage, Converter={StaticResource StringToVisibilityConverter}}"/>
+                <ProgressBar Value="{Binding PasswordStrengthValue}" Maximum="100" Height="6" Margin="0,0,0,8" Foreground="{StaticResource PrimaryBrush}" Background="#334b5562" />
+                <TextBlock Text="{Binding PasswordStrengthLabel}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,12" Visibility="{Binding PasswordStrengthLabel, Converter={StaticResource StringToVisibilityConverter}}"/>
+
+                <TextBlock Text="Confirm Password" FontSize="12" Foreground="{StaticResource TextBrush}" Margin="0,0,0,8"/>
+                <Grid Margin="0,0,0,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Grid.Column="0">
+                        <PasswordBox x:Name="ConfirmPasswordBox" Background="{StaticResource SidebarBrush}" Foreground="{StaticResource TextBrush}" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}" Padding="12">
+                            <PasswordBox.Style>
+                                <Style TargetType="PasswordBox">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ShowPassword}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsPasswordMismatch}" Value="True">
+                                            <Setter Property="BorderBrush" Value="{StaticResource OrangeBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </PasswordBox.Style>
+                        </PasswordBox>
+                        <TextBox Text="{Binding ConfirmPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Background="{StaticResource SidebarBrush}" Foreground="{StaticResource TextBrush}" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}" Padding="12">
+                            <TextBox.Style>
+                                <Style TargetType="TextBox">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ShowPassword}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsPasswordMismatch}" Value="True">
+                                            <Setter Property="BorderBrush" Value="{StaticResource OrangeBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBox.Style>
+                        </TextBox>
+                    </Grid>
+
+                    <ToggleButton Grid.Column="1" IsChecked="{Binding ShowPassword}" ToolTip="Toggle password visibility" Width="28" Height="28" Margin="8,0,0,0" BorderThickness="0" Background="Transparent">
+                        <Path Fill="{StaticResource TextBrush}" Stretch="Uniform" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path.Style>
+                                <Style TargetType="Path">
+                                    <Setter Property="Data" Value="{StaticResource EyeOpenIcon}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ShowPassword}" Value="True">
+                                            <Setter Property="Data" Value="{StaticResource EyeOffIcon}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Path.Style>
+                        </Path>
+                    </ToggleButton>
+                </Grid>
+                <TextBlock Text="{Binding ConfirmPasswordValidationMessage}" FontSize="10" Foreground="{StaticResource OrangeBrush}" Margin="0,0,0,12" Visibility="{Binding ConfirmPasswordValidationMessage, Converter={StaticResource StringToVisibilityConverter}}"/>
+
+                <Button Content="{Binding RegisterActionText}" Command="{Binding RegisterCommand}" Style="{StaticResource PrimaryButtonStyle}" Padding="16" Margin="0,0,0,16"/>
                 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                     <TextBlock Text="Already have an account?" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,8,0"/>

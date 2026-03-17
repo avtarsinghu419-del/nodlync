@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using AIHub.Models;
@@ -58,5 +59,10 @@ namespace AIHub.Repositories
 
         Task<List<ProjectActivity>> GetProjectActivitiesAsync(string projectId, CancellationToken ct = default);
         Task CreateProjectActivityAsync(ProjectActivity activity, CancellationToken ct = default);
+
+        // User profile (application-level identity) support
+        Task<UserProfile?> GetUserProfileAsync(string userId, CancellationToken ct = default);
+        Task<UserProfile?> SaveUserProfileAsync(UserProfile profile, CancellationToken ct = default);
+        Task<string?> UploadAvatarAsync(string userId, Stream imageStream, string fileName, CancellationToken ct = default);
     }
 }

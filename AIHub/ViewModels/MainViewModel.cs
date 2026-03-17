@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using AIHub.Models;
 using AIHub.Services;
 using AIHub.Repositories;
 
@@ -29,6 +30,7 @@ namespace AIHub.ViewModels
         [ObservableProperty] private string _sidebarUserName = "Loading...";
         [ObservableProperty] private string _sidebarUserInitials = "?";
         [ObservableProperty] private string _sidebarUserRole = string.Empty;
+        [ObservableProperty] private string _sidebarUserAvatarUrl = string.Empty;
 
         // ViewModels
         public DashboardViewModel  DashboardVM  { get; }
@@ -69,6 +71,9 @@ namespace AIHub.ViewModels
             _logger = logger;
             _auth = auth;
 
+            // Keep sidebar in sync with any profile changes (e.g., avatar updates)
+            _auth.CurrentUserChanged += OnCurrentUserChanged;
+
             DashboardVM = dashboardVM;
             ProjectsVM  = projectsVM;
             ProjectWorkspaceVM = projectWorkspaceVM;
@@ -93,7 +98,7 @@ namespace AIHub.ViewModels
             };
 
             // Wire auth callbacks
-            LoginVM.OnLoginSuccess    = () => OnLoginSuccess();
+            LoginVM.OnLoginSuccess    = async () => await OnLoginSuccessAsync();
             LoginVM.OnRequestRegister = () =>
             {
                 // Clear registration form before showing
@@ -119,34 +124,58 @@ namespace AIHub.ViewModels
                 SidebarUserName = "";
                 SidebarUserInitials = "?";
                 SidebarUserRole = string.Empty;
+                SidebarUserAvatarUrl = string.Empty;
             };
 
-            // Start at login — check session in background
+            // Start at login. App startup will attempt to restore any persisted session.
             _currentViewModel = LoginVM;
             PageTitle = "Sign In";
             IsAuthenticated = _auth.IsSessionValid;
-            _ = TryAutoLoginAsync();
         }
 
-        // ── Session Restore ───────────────────────────────────────────
-        private async Task TryAutoLoginAsync()
+        /// <summary>
+        /// Attempts to restore a previously saved session and, if successful, transitions into the authenticated state.
+        /// </summary>
+        public async Task InitializeAsync()
         {
             try
             {
                 bool valid = await _auth.TryRestoreSessionAsync();
-                if (valid) OnLoginSuccess();
+                if (valid)
+                {
+                    await OnLoginSuccessAsync();
+                }
             }
-            catch { /* no persisted session */ }
+            catch
+            {
+                // Ignore; user will stay on login screen.
+            }
         }
 
-        private void OnLoginSuccess()
+        private async Task OnLoginSuccessAsync()
         {
             var user = _auth.CurrentUser;
             if (user != null)
             {
-                SidebarUserName     = user.DisplayName;
-                SidebarUserInitials = user.Initials;
-                SidebarUserRole     = user.Role;
+                // Refresh profile from server (if it exists)
+                try
+                {
+                    var profile = await _supabaseService.GetUserProfileAsync(user.Id);
+                    if (profile != null)
+                    {
+                        _auth.UpdateCurrentUser(profile);
+                    }
+                }
+                catch
+                {
+                    // Ignore; fallback to current cached user
+                }
+
+                user = _auth.CurrentUser;
+                SidebarUserName     = user?.DisplayName ?? "";
+                SidebarUserInitials = user?.Initials ?? "?";
+                SidebarUserRole     = user?.Role ?? string.Empty;
+                SidebarUserAvatarUrl = user?.AvatarUrl ?? string.Empty;
             }
 
             IsAuthenticated = true;
@@ -164,7 +193,11 @@ namespace AIHub.ViewModels
                 SidebarUserName = "";
                 SidebarUserInitials = "?";
                 SidebarUserRole = string.Empty;
+                SidebarUserAvatarUrl = string.Empty;
             };
+
+            // Ensure profile view is refreshed after a successful login
+            await ProfileVM.LoadProfileAsync();
         }
 
         // ── Navigation ─────────────────────────────────────────────────
@@ -200,6 +233,14 @@ namespace AIHub.ViewModels
                 case "Settings":  CurrentViewModel = SettingsVM;  PageTitle = "Settings";              break;
                 case "Profile":   CurrentViewModel = ProfileVM;   PageTitle = "My Profile";            break;
             }
+        }
+
+        private void OnCurrentUserChanged(object? sender, UserProfile? user)
+        {
+            SidebarUserName = user?.DisplayName ?? string.Empty;
+            SidebarUserInitials = user?.Initials ?? "?";
+            SidebarUserRole = user?.Role ?? string.Empty;
+            SidebarUserAvatarUrl = user?.AvatarUrl ?? string.Empty;
         }
 
         [RelayCommand]
